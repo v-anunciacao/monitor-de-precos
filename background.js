@@ -839,15 +839,18 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
 							// Converte para float e garante formatação
 							const precoAtualFormatado = formatarBRL(precoAtual);
 							const precoAnteriorFormatado = formatarBRL(precoAntNum);
-							const menorPrecoGlobalNum = parseFloat(produtoAtualizado.menorPreco || '0');  // ou Infinity
+							let menorPrecoGlobalNum = parseFloat(produtoAtualizado.menorPreco);
+                                                        if (isNaN(menorPrecoGlobalNum)) {
+                                                                menorPrecoGlobalNum = Infinity;
+                                                        }
 							const menorPrecoGlobalFormatado = formatarBRL(menorPrecoGlobalNum);
 
 							const variacao = ((precoAtual - precoAntNum) / precoAntNum) * 100;
 
 							let mensagem = '';
 
-							// Verifica se novo precoAtual é menor que o menorPrecoGlobal
-							if (precoAtual < menorPrecoGlobalNum) {
+							// Verifica se novo precoAtual é menor ou igual ao menorPrecoGlobal
+							if (precoAtual <= menorPrecoGlobalNum) {
 								mensagem += '🚨 *MENOR PREÇO HISTÓRICO* 🚨\n\n';
 							}
 
@@ -1481,6 +1484,27 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
             sendResponse({ success: true });
           } catch (erro) {
             console.error('Erro ao atualizar status do produto:', erro);
+            sendResponse({ success: false, error: erro.message });
+          }
+          break;
+
+        case 'atualizarTermoAtivo':
+          try {
+            const { id, ativo } = request;
+            const termo = await obterTermoPorId(db, id);
+
+            if (!termo) {
+              sendResponse({ success: false, error: 'Termo não encontrado.' });
+              break;
+            }
+
+            termo.ativo = ativo;
+            await atualizarTermo(db, termo);
+
+            await adicionarLog(db, `Status do termo "${termo.descricao}" atualizado para ${ativo ? 'ativo' : 'inativo'}.`);
+            sendResponse({ success: true });
+          } catch (erro) {
+            console.error('Erro ao atualizar status do termo:', erro);
             sendResponse({ success: false, error: erro.message });
           }
           break;
