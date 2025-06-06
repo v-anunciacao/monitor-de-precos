@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor de Preços - Configurações</title>
+  <!-- Bootstrap CSS local -->
+  <link rel="stylesheet" href="bootstrap.min.css">
+  <style>
+    body { padding: 20px; }
+    #status { font-weight: bold; }
+    .card { margin-bottom: 20px; }
+    .log-entry { font-size: 0.9em; color: #555; }
+    .table td, .table th { vertical-align: middle; }
+    .logo { width: 50px; height: 50px; }
+    .navbar { margin-bottom: 20px; }
+    .current-interval { margin-left: 10px; font-weight: bold; }
+    .price-cell { display: flex; justify-content: space-between; }
+
+    /* Estilos para o modo escuro e persistência no input */
+	body.dark-mode input, 
+	body.dark-mode select, 
+	body.dark-mode textarea {
+		background-color: #2A2A2A !important;
+		color: #CCCCCC !important;
+		border: 1px solid #444444 !important;
+	}
+
+	body.dark-mode input:focus, 
+	body.dark-mode select:focus, 
+	body.dark-mode textarea:focus {
+		background-color: #2A2A2A !important;
+		color: #CCCCCC !important;
+		border-color: #666666 !important;
+	}
+
+	body.dark-mode select option {
+		background-color: #2A2A2A !important;
+		color: #CCCCCC !important;
+	}
+
+    body.dark-mode {
+      background-color: #121212;
+      color: #ffffff;
+    }
+    body.dark-mode .card {
+      background-color: #1e1e1e;
+      color: #ffffff;
+    }
+    body.dark-mode .navbar {
+      background-color: #1e1e1e;
+    }
+    body.dark-mode .table {
+      background-color: #1e1e1e;
+      color: #ffffff;
+    }
+    body.dark-mode .table thead th {
+      background-color: #333333;
+    }
+    body.dark-mode .table tbody tr {
+      background-color: #1e1e1e;
+    }
+    body.dark-mode .table tbody tr:nth-of-type(odd) {
+      background-color: #2a2a2a;
+    }
+    body.dark-mode .table tbody tr:hover {
+      background-color: #3a3a3a;
+    }
+    body.dark-mode .modal-content {
+      background-color: #1e1e1e;
+      color: #ffffff;
+    }
+
+	#seletorCSSModal .modal-dialog {
+	  max-width: 90vw;
+	}
+
+	#seletorCSSModal .modal-content {
+	  max-height: 80vh;
+	  overflow: hidden;
+	}
+
+	#seletorCSSModal .modal-body {
+	  overflow-y: auto;
+	  overflow-x: auto;
+	  max-height: calc(80vh - 100px);
+	  white-space: nowrap;
+	}
+
+    .price-cell .currency-symbol {
+      margin-right: auto;
+    }
+    .price-cell .price-value {
+      margin-left: auto;
+    }
+
+    @media (min-width: 1200px) {
+      .left-column {
+        max-width: 66.6667%;
+      }
+      .right-column {
+        max-width: 33.3333%;
+      }
+    }
+    @media (max-width: 1199.98px) and (min-width: 768px) {
+      .left-column {
+        max-width: 75%;
+      }
+      .right-column {
+        max-width: 25%;
+      }
+    }
+    @media (max-width: 767.98px) {
+      .left-column, .right-column {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar com switch para modo escuro -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <a class="navbar-brand" href="#">
+      <img src="icon.png" alt="Logo" class="logo">
+      Monitor de Preços
+    </a>
+    <div class="ml-auto">
+      <div class="custom-control custom-switch">
+        <input type="checkbox" class="custom-control-input" id="darkModeSwitch">
+        <label class="custom-control-label text-light" for="darkModeSwitch">Modo Escuro</label>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Coluna Esquerda: Configurações -->
+      <div class="col-lg-8 col-md-9 col-sm-12 left-column">
+        <h1 class="mb-4">Configurações</h1>
+
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Status Atual: <span id="status">Ocioso</span></h5>
+            <button id="executarAgoraButton" class="btn btn-primary">Executar Pesquisa Agora</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Ajustar Intervalo de Execução</h5>
+            <form id="intervaloForm" class="form-inline">
+              <div class="form-group mb-2">
+                <label for="intervaloTempo" class="sr-only">Intervalo em minutos</label>
+                <input type="number" id="intervaloTempo" class="form-control" placeholder="Intervalo em minutos" min="1" required>
+              </div>
+              <button type="submit" class="btn btn-secondary mb-2 ml-2">Salvar Intervalo</button>
+              <span class="current-interval" id="intervaloAtual"></span>
+            </form>
+          </div>
+        </div>
+
+        <h2>Produtos Monitorados</h2>
+        <table id="tabelaProdutos" class="table table-striped">
+          <thead class="thead-dark">
+            <tr>
+              <th>Ativo</th>
+              <th>Modelo</th>
+              <th>Site</th>
+              <th>Link</th>
+              <th>Preço Atual</th>
+              <th>Menor Preço</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+				</table>
+
+				<!-- Campo dinâmico de Importar/Exportar -->
+				<div class="card">
+					<div class="card-body">
+						<h5 class="card-title">Importar/Exportar Produtos</h5>
+						<button id="toggleCampoCsv" class="btn btn-info mb-2">Exibir/Ocultar</button>
+						<div id="campoCsvContainer" style="display: none;">
+							<textarea id="campoCsv" class="form-control mb-2" rows="5" placeholder="Conteúdo CSV"></textarea>
+							<div>
+								<button id="botaoExportar" class="btn btn-success">
+									<i class="fa fa-upload"></i> Exportar
+								</button>
+								<button id="botaoImportar" class="btn btn-primary">
+									<i class="fa fa-download"></i> Importar
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+        <!-- Formulário para adicionar produto -->
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Adicionar Novo Produto</h5>
+						<form id="produtoForm">
+							<div class="form-group">
+								<select id="modeloSelect" class="form-control" required></select>
+								<input type="text" id="modeloNovo" class="form-control mt-2" placeholder="Digite o novo modelo" style="display:none;">
+							</div>
+							<div class="form-group">
+								<input type="url" id="link" class="form-control" placeholder="Link" required>
+							</div>
+							<div class="form-group">
+								<input type="text" id="precoAtual" class="form-control" placeholder="Preço Atual" required>
+							</div>  
+							<div class="form-group">
+								<select id="siteSelect" class="form-control" required></select>
+								<input type="text" id="novoSite" class="form-control mt-2" placeholder="Digite o nome do novo site" style="display:none;">
+							</div>  
+							<button type="button" id="analisarLinkButton" class="btn btn-primary">Analisar Link</button>
+						</form>
+          </div>
+        </div>
+
+        <!-- Modal para selecionar Seletor CSS -->
+        <div class="modal fade" id="seletorCSSModal" tabindex="-1" role="dialog" aria-labelledby="seletorCSSModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="seletorCSSModalLabel">Selecione o Seletor CSS e Atributo</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <p>Selecione a opção que corresponde ao preço do produto:</p>
+                <table id="tabelaSeletores" class="table table-striped">
+                  <thead>
+                    <tr>
+                      <th>Pré-visualização</th>
+                      <th>Seletor CSS</th>
+                      <th>Atributo</th>
+                      <th>Selecionar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- Opções serão inseridas aqui -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal para editar produto -->
+        <div class="modal fade" id="editarProdutoModal" tabindex="-1" role="dialog" aria-labelledby="editarProdutoModalLabel" aria-hidden="true">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <form id="editarProdutoForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="editarProdutoModalLabel">Editar Produto</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+                <div class="modal-body">
+                  <input type="hidden" id="editarProdutoId">
+                  <div class="form-group">
+                    <label for="editarModelo">Modelo</label>
+                    <input type="text" id="editarModelo" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="editarSite">Site</label>
+                    <input type="text" id="editarSite" class="form-control" placeholder="Digite o nome do site" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="editarLink">Link</label>
+                    <input type="url" id="editarLink" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="editarPrecoAnterior">Preço Atual</label>
+                    <input type="text" id="editarPrecoAnterior" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="editarMenorPreco">Menor Preço</label>
+                    <input type="text" id="editarMenorPreco" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="editarAtivo">Ativo</label>
+                    <input type="checkbox" id="editarAtivo">
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                  <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <h2>Configurações de Domínios</h2>
+				<table id="tabelaDominios" class="table table-striped">
+					<thead class="thead-dark">
+						<tr>
+							<th>Domínio</th>
+							<th>CSS Selector</th>
+							<th>Atributo</th>
+							<th>Método Extração</th>
+							<th>Valor no método (nomeAttr)</th>
+							<th>Ações</th>
+						</tr>
+					</thead>
+					<tbody>
+						<!-- Conteúdo preenchido dinamicamente -->
+					</tbody>
+				</table>
+
+				<!-- Modal para editar domínio -->
+				<div class="modal fade" id="editarDominioModal" tabindex="-1" role="dialog" aria-labelledby="editarDominioModalLabel" aria-hidden="true">
+					<div class="modal-dialog" role="document">
+						<div class="modal-content">
+							<form id="editarDominioForm">
+								<div class="modal-header">
+									<h5 class="modal-title" id="editarDominioModalLabel">Editar Domínio</h5>
+									<button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+										<span aria-hidden="true">&times;</span>
+									</button>
+								</div>
+								<div class="modal-body">
+									<input type="hidden" id="editarDominioId">
+									<div class="form-group">
+										<label for="editarDominioCampo">Domínio</label>
+										<input type="text" class="form-control" id="editarDominioCampo" required>
+									</div>
+									<div class="form-group">
+										<label for="editarSelectorCampo">CSS Selector</label>
+										<input type="text" class="form-control" id="editarSelectorCampo" required>
+									</div>
+									<div class="form-group">
+										<label for="editarAtributoCampo">Atributo</label>
+										<input type="text" class="form-control" id="editarAtributoCampo" required>
+									</div>
+									<div class="form-group">
+										<label for="editarMetodoTipoCampo">Tipo de Extração</label>
+										<select class="form-control" id="editarMetodoTipoCampo" required>
+											<option value="texto">Texto</option>
+											<option value="atributo">Atributo</option>
+										</select>
+									</div>
+									<div class="form-group">
+										<label for="editarMetodoAttrCampo">Nome do Atributo no Método (nomeAttr)</label>
+										<input type="text" class="form-control" id="editarMetodoAttrCampo" placeholder="Ex: data-price">
+									</div>
+								</div>
+								<div class="modal-footer">
+									<button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+									<button type="submit" class="btn btn-primary">Salvar Alterações</button>
+								</div>
+							</form>
+						</div>
+					</div>
+				</div>
+				
+				<!-- Seção de Monitoramento de Termos -->
+        <h2>Monitoramento de Termos</h2>
+        <table id="tabelaTermos" class="table table-striped">
+          <thead class="thead-dark">
+            <tr>
+              <th>Ativo</th>
+              <th>Descrição</th>
+              <th>Link</th>
+              <th>Termo</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <!-- Formulário para adicionar termo -->
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Adicionar Novo Termo</h5>
+            <form id="termoForm">
+              <div class="form-group">
+                <input type="text" id="descricaoTermo" class="form-control" placeholder="Descrição" required>
+              </div>
+              <div class="form-group">
+                <input type="url" id="linkTermo" class="form-control" placeholder="Link" required>
+              </div>
+              <div class="form-group">
+                <input type="text" id="termo" class="form-control" placeholder="Termo a Pesquisar" required>
+              </div>
+              <button type="submit" class="btn btn-success">Adicionar Termo</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Modal para editar termo -->
+        <div class="modal fade" id="editarTermoModal" tabindex="-1" role="dialog" aria-labelledby="editarTermoModalLabel" aria-hidden="true">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <form id="editarTermoForm">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="editarTermoModalLabel">Editar Termo</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+                <div class="modal-body">
+                  <input type="hidden" id="editarTermoId">
+                  <div class="form-group">
+                    <label for="editarDescricaoTermo">Descrição</label>
+                    <input type="text" id="editarDescricaoTermo" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="editarLinkTermo">Link</label>
+                    <input type="url" id="editarLinkTermo" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="editarTermo">Termo</label>
+                    <input type="text" id="editarTermo" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="editarAtivoTermo">Ativo</label>
+                    <input type="checkbox" id="editarAtivoTermo">
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                  <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Configurações do Telegram -->
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Configurações do Telegram</h5>
+            <form id="telegramForm">
+              <div class="form-group">
+                <input type="text" id="botToken" class="form-control" placeholder="Bot Token" required>
+              </div>
+              <div class="form-group">
+                <input type="text" id="chatId" class="form-control" placeholder="Chat ID" required>
+              </div>
+              <button type="submit" class="btn btn-success">Salvar Configurações</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coluna Direita: Logs -->
+      <div class="col-lg-4 col-md-3 col-sm-12 right-column">
+        <div class="card">
+          <div class="card-body">
+            <h2>Logs de Eventos</h2>
+            <button id="atualizarLogsButton" class="btn btn-info mb-2">Atualizar Logs</button><button id="limparLogsButton" class="btn btn-danger mb-2 ml-2">Limpar Logs</button>
+            <table id="tabelaLogs" class="table table-striped">
+              <thead class="thead-dark">
+                <tr>
+                  <th>Data/Hora</th>
+                  <th>Mensagem</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Logs serão inseridos aqui -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts locais -->
+  <script src="jquery.min.js"></script>
+  <script src="bootstrap.min.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
