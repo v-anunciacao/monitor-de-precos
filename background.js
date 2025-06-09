@@ -803,16 +803,16 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
 						await atualizarProduto(db, produto);
 						console.log('[DEBUG] Produto atualizado no DB com novo precoAnterior:', produto.precoAnterior);
 						
-						chrome.runtime.sendMessage({
-							action: 'produtoAtualizado',
-							produto: produto
-						}, () => {
-							if (chrome.runtime.lastError) {
-								console.error('[ERROR] Falha ao enviar mensagem produtoAtualizado:', chrome.runtime.lastError.message);
-							} else {
-								console.log('[DEBUG] Mensagem produtoAtualizado enviada com sucesso.');
-							}
-						});
+                                                chrome.runtime.sendMessage({
+                                                        action: 'produtoAtualizado',
+                                                        produto: produto
+                                                }, () => {
+                                                        if (chrome.runtime.lastError) {
+                                                                // Normalmente ocorre quando a página de opções não está aberta.
+                                                                // Apenas ignore para evitar logs de erro desnecessários.
+                                                                console.debug('[DEBUG] Nenhum receptor para produtoAtualizado:', chrome.runtime.lastError.message);
+                                                        }
+                                                });
 
 						await recalcularMenorPrecoModelo(db, modelo);
 						const produtoAtualizado = await obterProdutoPorId(db, id);
