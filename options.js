@@ -227,7 +227,7 @@ $(document).ready(function() {
       alert('Por favor, insira o link do produto e o valor a ser procurado.');
       return;
     }
-    analisarLink(link, precoAtual);
+    abrirModalSelecao(link);
   });
 
   $('#editarProdutoForm').on('submit', function(e) {
@@ -700,6 +700,98 @@ function exibirSeletores(opcoes) {
   }
 
   $('#seletorCSSModal').modal('show');
+}
+
+async function abrirModalSelecao(link) {
+  try {
+    const response = await fetch(link);
+    if (!response.ok) {
+      throw new Error('Falha ao carregar página');
+    }
+    const html = await response.text();
+    const frame = document.getElementById('previewFrame');
+    frame.srcdoc = html;
+
+    $('#frameSelecaoModal').modal('show');
+
+    frame.onload = () => {
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      let ultimo = null;
+
+      const mouseover = e => {
+        if (ultimo) ultimo.style.outline = '';
+        ultimo = e.target;
+        e.target.style.outline = '2px solid red';
+      };
+
+      const mouseout = e => {
+        e.target.style.outline = '';
+      };
+
+      const click = e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const selector = getUniqueSelector(e.target);
+        $('#frameSelecaoModal').modal('hide');
+        salvarProdutoComSeletor(selector, '', { tipo: 'texto' });
+        doc.removeEventListener('mouseover', mouseover);
+        doc.removeEventListener('mouseout', mouseout);
+        doc.removeEventListener('click', click);
+      };
+
+      doc.addEventListener('mouseover', mouseover);
+      doc.addEventListener('mouseout', mouseout);
+      doc.addEventListener('click', click);
+    };
+  } catch (erro) {
+    console.error('Erro ao carregar página para seleção manual:', erro);
+    alert('Erro ao carregar página: ' + erro.message);
+  }
+}
+
+function getUniqueSelector(el) {
+  if (el.id) {
+    return `#${el.id}`;
+  }
+
+  let selector = el.nodeName.toLowerCase();
+
+  if (el.hasAttribute('itemprop')) {
+    const itemprop = el.getAttribute('itemprop');
+    selector += `[itemprop="${itemprop}"]`;
+  } else if (el.hasAttribute('class')) {
+    selector += '.' + Array.from(el.classList).join('.');
+  }
+
+  const siblings = el.parentNode ? Array.from(el.parentNode.children).filter(child => child.nodeName === el.nodeName) : [];
+  if (siblings.length > 1) {
+    const index = siblings.indexOf(el) + 1;
+    selector += `:nth-of-type(${index})`;
+  }
+
+  const path = [selector];
+  el = el.parentNode;
+
+  while (el && el.nodeType === Node.ELEMENT_NODE) {
+    let part = el.nodeName.toLowerCase();
+
+    if (el.hasAttribute('id')) {
+      part += `#${el.getAttribute('id')}`;
+    } else if (el.hasAttribute('class')) {
+      part += '.' + Array.from(el.classList).join('.');
+    }
+
+    const siblingsEl = el.parentNode ? Array.from(el.parentNode.children).filter(child => child.nodeName === el.nodeName) : [];
+    if (siblingsEl.length > 1) {
+      const indexEl = siblingsEl.indexOf(el) + 1;
+      part += `:nth-of-type(${indexEl})`;
+    }
+
+    path.unshift(part);
+    el = el.parentNode;
+  }
+
+  return path.join(' > ');
 }
 
 function obterModeloSelecionado() {
