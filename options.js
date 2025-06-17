@@ -202,6 +202,7 @@ $(document).ready(function() {
 
   carregarStatus();
   carregarIntervaloTempo();
+  carregarIntervaloApoiamentos();
   carregarProdutos();
   carregarTermos();
   carregarConfiguracoesTelegram();
@@ -286,6 +287,11 @@ $(document).ready(function() {
   $('#intervaloForm').on('submit', function(e) {
     e.preventDefault();
     definirIntervaloTempo();
+  });
+
+  $('#intervaloApoiamentosForm').on('submit', function(e) {
+    e.preventDefault();
+    definirIntervaloApoiamentos();
   });
 
   $('#telegramForm').on('submit', function(e) {
@@ -537,6 +543,18 @@ function carregarIntervaloTempo() {
     var intervalo = dados.intervaloTempo || 120;
     $('#intervaloTempo').val(intervalo);
     $('#intervaloAtual').text('Intervalo atual: ' + intervalo + ' minutos');
+  });
+}
+
+function carregarIntervaloApoiamentos() {
+  chrome.storage.local.get(['intervaloApoiamentos'], function(dados) {
+    if (chrome.runtime.lastError) {
+      console.error('Erro ao obter intervalo de apoiamentos:', chrome.runtime.lastError);
+      return;
+    }
+    var intervalo = dados.intervaloApoiamentos || 60;
+    $('#intervaloApoiamentos').val(intervalo);
+    $('#intervaloApoiamentosAtual').text('Intervalo atual: ' + intervalo + ' minutos');
   });
 }
 
@@ -1240,6 +1258,28 @@ function definirIntervaloTempo() {
     if (response.success) {
       alert('Intervalo salvo com sucesso!');
       $('#intervaloAtual').text('Intervalo atual: ' + intervaloTempo + ' minutos');
+    } else {
+      alert('Erro ao salvar intervalo: ' + response.error);
+    }
+  });
+}
+
+function definirIntervaloApoiamentos() {
+  var intervalo = $('#intervaloApoiamentos').val();
+  if (!intervalo || intervalo <= 0) {
+    alert('Por favor, insira um intervalo válido em minutos.');
+    return;
+  }
+
+  chrome.runtime.sendMessage({ action: 'definirIntervaloApoiamentos', intervaloTempo: intervalo }, function(response) {
+    if (chrome.runtime.lastError) {
+      console.error('Erro ao definir intervalo de apoiamentos:', chrome.runtime.lastError);
+      alert('Erro ao salvar intervalo de apoiamentos. Verifique o console para mais detalhes.');
+      return;
+    }
+    if (response.success) {
+      alert('Intervalo salvo com sucesso!');
+      $('#intervaloApoiamentosAtual').text('Intervalo atual: ' + intervalo + ' minutos');
     } else {
       alert('Erro ao salvar intervalo: ' + response.error);
     }

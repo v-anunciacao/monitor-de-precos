@@ -159,6 +159,20 @@
           </div>
         </div>
 
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Intervalo de Apoiamentos</h5>
+            <form id="intervaloApoiamentosForm" class="form-inline">
+              <div class="form-group mb-2">
+                <label for="intervaloApoiamentos" class="sr-only">Intervalo em minutos</label>
+                <input type="number" id="intervaloApoiamentos" class="form-control" placeholder="Intervalo em minutos" min="1" required>
+              </div>
+              <button type="submit" class="btn btn-secondary mb-2 ml-2">Salvar Intervalo</button>
+              <span class="current-interval" id="intervaloApoiamentosAtual"></span>
+            </form>
+          </div>
+        </div>
+
         <h2>Produtos Monitorados</h2>
         <table id="tabelaProdutos" class="table table-striped">
           <thead class="thead-dark">
