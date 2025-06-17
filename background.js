@@ -755,9 +755,14 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
 	async function verificarPrecos() {
 		console.log('[DEBUG] verificarPrecos iniciado.');
 		try {
-			const db = await inicializarBancoDados();
-			console.log('[DEBUG] Banco de dados inicializado com sucesso.');
-			const produtos = await obterTodosProdutos(db);
+                        const db = await inicializarBancoDados();
+                        console.log('[DEBUG] Banco de dados inicializado com sucesso.');
+
+                        const configTelegram = await obterConfiguracoesTelegram(db);
+                        const botToken = configTelegram.botToken;
+                        const chatId = configTelegram.chatId;
+
+                        const produtos = await obterTodosProdutos(db);
 			console.log('[DEBUG] Produtos obtidos:', produtos);
 
 			await atualizarStatus('Verificando preços...');
@@ -817,12 +822,6 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
                                                 chrome.runtime.sendMessage({
                                                         action: 'produtoAtualizado',
                                                         produto: produto
-                                                }, () => {
-                                                        if (chrome.runtime.lastError) {
-                                                                // Normalmente ocorre quando a página de opções não está aberta.
-                                                                // Apenas ignore para evitar logs de erro desnecessários.
-                                                                console.debug('[DEBUG] Nenhum receptor para produtoAtualizado:', chrome.runtime.lastError.message);
-                                                        }
                                                 });
 
 						await recalcularMenorPrecoModelo(db, modelo);
@@ -1023,6 +1022,7 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
 
   async function verificarApoiamentos() {
     try {
+      console.log('[DEBUG] Iniciando verificação de apoiamentos...');
       const headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.3351.34",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -1113,8 +1113,10 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
         await enviarNotificacaoTelegram(mensagem, config.botToken, config.chatId);
         await adicionarLog(db, `Apoiamentos atualizados: ${totalAptos}`);
       }
+      return totalAptos;
     } catch (erro) {
       console.error('Erro ao verificar apoiamentos:', erro);
+      throw erro;
     }
   }
 
@@ -1597,7 +1599,17 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
           try {
             await verificarPrecos();
             await verificarTermos();
-            sendResponse({ success: true });
+            const resultado = await verificarApoiamentos();
+            sendResponse({ success: true, totalApoiamentos: resultado });
+          } catch (erro) {
+            sendResponse({ success: false, error: erro.message });
+          }
+          break;
+
+        case 'verificarApoiamentosAgora':
+          try {
+            const total = await verificarApoiamentos();
+            sendResponse({ success: true, totalApoiamentos: total });
           } catch (erro) {
             sendResponse({ success: false, error: erro.message });
           }

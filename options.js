@@ -294,6 +294,23 @@ $(document).ready(function() {
     definirIntervaloApoiamentos();
   });
 
+  $('#verificarApoiamentosButton').on('click', function() {
+    $('#resultadoApoiamentos').text('Verificando...');
+    chrome.runtime.sendMessage({ action: 'verificarApoiamentosAgora' }, function(response) {
+      if (chrome.runtime.lastError) {
+        console.error('Erro ao verificar apoiamentos:', chrome.runtime.lastError);
+        $('#resultadoApoiamentos').text('Erro na verificação.');
+        return;
+      }
+      if (response.success) {
+        $('#resultadoApoiamentos').text('Apoiamentos atuais: ' + response.totalApoiamentos.toLocaleString('pt-BR'));
+      } else {
+        $('#resultadoApoiamentos').text('Erro: ' + response.error);
+      }
+    });
+  });
+
+
   $('#telegramForm').on('submit', function(e) {
     e.preventDefault();
     salvarConfiguracoesTelegram();
