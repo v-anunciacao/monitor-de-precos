@@ -310,6 +310,7 @@ $(document).ready(function() {
     });
   });
 
+
   $('#telegramForm').on('submit', function(e) {
     e.preventDefault();
     salvarConfiguracoesTelegram();
