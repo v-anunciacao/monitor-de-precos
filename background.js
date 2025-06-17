@@ -48,6 +48,17 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
   const DB_NAME = 'MonitorDePrecosDB';
   const DB_VERSION = 1;
   let intervaloVerificacao = 120;
+  let intervaloApoiamentos = 60;
+  let ultimoTotalApoiamentos = null;
+
+  function carregarConfiguracoes(callback) {
+    chrome.storage.local.get(['intervaloTempo', 'intervaloApoiamentos', 'ultimoTotalApoiamentos'], (dados) => {
+      if (dados.intervaloTempo) intervaloVerificacao = parseInt(dados.intervaloTempo);
+      if (dados.intervaloApoiamentos) intervaloApoiamentos = parseInt(dados.intervaloApoiamentos);
+      if (dados.ultimoTotalApoiamentos) ultimoTotalApoiamentos = parseInt(dados.ultimoTotalApoiamentos);
+      if (typeof callback === 'function') callback();
+    });
+  }
 
   function inicializarBancoDados() {
     return new Promise((resolve, reject) => {
@@ -744,9 +755,14 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
 	async function verificarPrecos() {
 		console.log('[DEBUG] verificarPrecos iniciado.');
 		try {
-			const db = await inicializarBancoDados();
-			console.log('[DEBUG] Banco de dados inicializado com sucesso.');
-			const produtos = await obterTodosProdutos(db);
+                        const db = await inicializarBancoDados();
+                        console.log('[DEBUG] Banco de dados inicializado com sucesso.');
+
+                        const configTelegram = await obterConfiguracoesTelegram(db);
+                        const botToken = configTelegram.botToken;
+                        const chatId = configTelegram.chatId;
+
+                        const produtos = await obterTodosProdutos(db);
 			console.log('[DEBUG] Produtos obtidos:', produtos);
 
 			await atualizarStatus('Verificando preços...');
@@ -806,12 +822,6 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
                                                 chrome.runtime.sendMessage({
                                                         action: 'produtoAtualizado',
                                                         produto: produto
-                                                }, () => {
-                                                        if (chrome.runtime.lastError) {
-                                                                // Normalmente ocorre quando a página de opções não está aberta.
-                                                                // Apenas ignore para evitar logs de erro desnecessários.
-                                                                console.debug('[DEBUG] Nenhum receptor para produtoAtualizado:', chrome.runtime.lastError.message);
-                                                        }
                                                 });
 
 						await recalcularMenorPrecoModelo(db, modelo);
@@ -1007,6 +1017,123 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
       await atualizarStatus('Ocioso');
     } catch (erro) {
       console.error('Erro na função verificarTermos:', erro);
+    }
+  }
+
+  async function verificarApoiamentos() {
+    try {
+      console.log('[DEBUG] Iniciando verificação de apoiamentos...');
+      const headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.3351.34",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "X-Requested-With": "XMLHttpRequest"
+      };
+
+      const tseUrl = "https://www.tse.jus.br/partidos/criacao-de-partido/partidos-em-formacao";
+      const sapfUrl = "https://sapf.tse.jus.br/sapf-consulta/paginas/principal";
+      const listUrl = "https://sapf.tse.jus.br/sapf-consulta/paginas/partidoFormacao/listar";
+
+      await fetch(tseUrl, { headers, credentials: 'include' });
+      const sapfResp = await fetch(sapfUrl, { headers, credentials: 'include' });
+      if (!sapfResp.ok) throw new Error('Falha ao carregar SAPF');
+
+      const sapfText = await sapfResp.text();
+      let viewstate;
+      if (typeof DOMParser !== 'undefined') {
+        const sapfDoc = new DOMParser().parseFromString(sapfText, 'text/html');
+        const viewstateInput = sapfDoc.querySelector('input[name="javax.faces.ViewState"]');
+        if (viewstateInput) viewstate = viewstateInput.value;
+      }
+      if (!viewstate) {
+        const vsMatch = sapfText.match(/name=["']javax\.faces\.ViewState["']\s+value=["']([^"']+)["']/);
+        if (vsMatch) {
+          viewstate = vsMatch[1];
+        }
+      }
+      if (!viewstate) throw new Error('ViewState não encontrado');
+
+      const payload = new URLSearchParams({
+        "javax.faces.partial.ajax": "true",
+        "javax.faces.source": "partidoDataList",
+        "javax.faces.partial.execute": "partidoDataList",
+        "javax.faces.partial.render": "partidoDataList",
+        "partidoDataList": "partidoDataList",
+        "partidoDataList_pagination": "true",
+        "partidoDataList_first": "0",
+        "partidoDataList_rows": "100",
+        "partidoDataList_skipChildren": "true",
+        "partidoDataList_encodeFeature": "true",
+        "ListarPartidosForm": "ListarPartidosForm",
+        "partidoDataList_rppDD": "100",
+        "javax.faces.ViewState": viewstate
+      });
+
+      const listResp = await fetch(listUrl, { method: 'POST', headers, body: payload.toString(), credentials: 'include' });
+      if (!listResp.ok) throw new Error('Falha ao listar partidos');
+      const listText = await listResp.text();
+      let targetRowId = null;
+      if (typeof DOMParser !== 'undefined') {
+        const listDoc = new DOMParser().parseFromString(listText, 'application/xml');
+        const rows = Array.from(listDoc.querySelectorAll('tr[role="row"]'));
+        rows.forEach((row, idx) => {
+          const cnpjCell = row.querySelector('td.ui-column-cnpj');
+          if (cnpjCell && cnpjCell.textContent.includes('000103')) {
+            targetRowId = `partidoDataList:${idx}:j_idt36`;
+          }
+        });
+      }
+      if (!targetRowId) {
+        const rowRegex = /id="(partidoDataList:(\d+):j_idt36)"[\s\S]*?<td class="ui-column-cnpj">\s*([^<]*000103[^<]*)/;
+        const rowMatch = listText.match(rowRegex);
+        if (rowMatch) {
+          targetRowId = rowMatch[1];
+        }
+      }
+      if (!targetRowId) throw new Error('Partido desejado não encontrado');
+
+      const detailsPayload = new URLSearchParams({
+        "javax.faces.partial.ajax": "true",
+        "javax.faces.source": targetRowId,
+        "javax.faces.partial.execute": targetRowId,
+        "javax.faces.partial.render": "partidoDataList",
+        "partidoDataList": "partidoDataList",
+        "ListarPartidosForm": "ListarPartidosForm",
+        "javax.faces.ViewState": viewstate
+      });
+
+      const detailsResp = await fetch(listUrl, { method: 'POST', headers, body: detailsPayload.toString(), credentials: 'include' });
+      if (!detailsResp.ok) throw new Error('Falha ao obter detalhes');
+      const detailsText = await detailsResp.text();
+      const match = /Total de aptos: (\d+)/.exec(detailsText);
+      if (!match) throw new Error('Total de aptos não encontrado');
+
+      const totalAptos = parseInt(match[1], 10);
+      if (ultimoTotalApoiamentos === null || totalAptos !== ultimoTotalApoiamentos) {
+        ultimoTotalApoiamentos = totalAptos;
+        chrome.storage.local.set({ ultimoTotalApoiamentos: totalAptos });
+
+        const faltam = 547455 - totalAptos;
+        const mensagem =
+          "⬛️⬜️🟨 *MISSÃO* 🟨⬜️⬛️\n" +
+          "```---------------------------------- \n" +
+          "✅ Análise de Apoiamentos:\n" +
+          `| ✍️ Apoiamentos Atuais:  ${totalAptos.toLocaleString('pt-BR')}\n` +
+          "| 🎯 Meta de Apoiamentos: 547.455\n" +
+          "----------------------------------\n" +
+          `| 🔭 Faltam ${faltam.toLocaleString('pt-BR')} apoiamentos para atingir a meta.` +
+          "```";
+
+        const db = await inicializarBancoDados();
+        const config = await obterConfiguracoesTelegram(db);
+        await enviarNotificacaoTelegram(mensagem, config.botToken, config.chatId);
+        await adicionarLog(db, `Apoiamentos atualizados: ${totalAptos}`);
+      }
+      return totalAptos;
+    } catch (erro) {
+      console.error('Erro ao verificar apoiamentos:', erro);
+      throw erro;
     }
   }
 
@@ -1216,24 +1343,38 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
     chrome.alarms.create('verificacaoTermo', { periodInMinutes: intervaloVerificacao });
   }
 
+  function agendarVerificacaoApoiamentos() {
+    chrome.alarms.create('verificacaoApoiamentos', { periodInMinutes: intervaloApoiamentos });
+  }
+
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'verificacaoPreco') {
       verificarPrecos();
     } else if (alarm.name === 'verificacaoTermo') {
       verificarTermos();
+    } else if (alarm.name === 'verificacaoApoiamentos') {
+      verificarApoiamentos();
     }
   });
 
   chrome.runtime.onInstalled.addListener(() => {
-    agendarVerificacao();
-    verificarPrecos();
-    verificarTermos();
+    carregarConfiguracoes(() => {
+      agendarVerificacao();
+      agendarVerificacaoApoiamentos();
+      verificarPrecos();
+      verificarTermos();
+      verificarApoiamentos();
+    });
   });
 
   chrome.runtime.onStartup.addListener(() => {
-    agendarVerificacao();
-    verificarPrecos();
-    verificarTermos();
+    carregarConfiguracoes(() => {
+      agendarVerificacao();
+      agendarVerificacaoApoiamentos();
+      verificarPrecos();
+      verificarTermos();
+      verificarApoiamentos();
+    });
   });
 
   chrome.action.onClicked.addListener(() => {
@@ -1418,11 +1559,25 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
         case 'definirIntervaloTempo':
           try {
             intervaloVerificacao = parseInt(request.intervaloTempo);
+            chrome.storage.local.set({ intervaloTempo: intervaloVerificacao });
             await adicionarLog(db, `Intervalo de verificação definido para ${intervaloVerificacao} minutos.`);
             chrome.alarms.clear('verificacaoPreco');
             chrome.alarms.create('verificacaoPreco', { periodInMinutes: intervaloVerificacao });
             chrome.alarms.clear('verificacaoTermo');
             chrome.alarms.create('verificacaoTermo', { periodInMinutes: intervaloVerificacao });
+            sendResponse({ success: true });
+          } catch (erro) {
+            sendResponse({ success: false, error: erro });
+          }
+          break;
+
+        case 'definirIntervaloApoiamentos':
+          try {
+            intervaloApoiamentos = parseInt(request.intervaloTempo);
+            chrome.storage.local.set({ intervaloApoiamentos: intervaloApoiamentos });
+            await adicionarLog(db, `Intervalo de apoiamentos definido para ${intervaloApoiamentos} minutos.`);
+            chrome.alarms.clear('verificacaoApoiamentos');
+            chrome.alarms.create('verificacaoApoiamentos', { periodInMinutes: intervaloApoiamentos });
             sendResponse({ success: true });
           } catch (erro) {
             sendResponse({ success: false, error: erro });
@@ -1461,7 +1616,17 @@ if (typeof chrome === 'undefined' || typeof chrome.runtime === 'undefined' || ty
           try {
             await verificarPrecos();
             await verificarTermos();
-            sendResponse({ success: true });
+            const resultado = await verificarApoiamentos();
+            sendResponse({ success: true, totalApoiamentos: resultado });
+          } catch (erro) {
+            sendResponse({ success: false, error: erro.message });
+          }
+          break;
+
+        case 'verificarApoiamentosAgora':
+          try {
+            const total = await verificarApoiamentos();
+            sendResponse({ success: true, totalApoiamentos: total });
           } catch (erro) {
             sendResponse({ success: false, error: erro.message });
           }
