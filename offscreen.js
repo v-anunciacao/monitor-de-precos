@@ -107,6 +107,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const element = doc.querySelector(request.selector);
       if (!element) {
         console.warn(`Elemento não encontrado com o seletor "${request.selector}".`);
+        console.debug('Trecho do HTML recebido:', request.html.slice(0, 200));
         sendResponse({ result: null });
         return;
       }
